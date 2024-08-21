@@ -55,19 +55,36 @@ class WevViewApp extends StatefulWidget {
 
 class _WevViewAppState extends State<WevViewApp> {
   late WebViewController controller;
+  String? script;
 
   @override
   void initState() {
     super.initState();
     controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
+      ..addJavaScriptChannel("myChannel",
+          onMessageReceived: (JavaScriptMessage message) {
+        debugPrint('''
+    message received ${message.message}
+    ''');
+        callScript(message.message);
+      })
       ..setNavigationDelegate(
         NavigationDelegate(
           onProgress: (int progress) {
             // Update loading bar.
           },
-          onPageStarted: (String url) {},
-          onPageFinished: (String url) {},
+          onPageStarted: (String url) {
+            debugPrint('''
+    page start $url
+    ''');
+          },
+          onPageFinished: (String url) {
+            debugPrint('''
+    page finish $url
+    ''');
+            injectJavascript(controller);
+          },
           onNavigationRequest: (NavigationRequest request) {
             if (request.url.startsWith('https://www.youtube.com/')) {
               return NavigationDecision.prevent;
@@ -85,7 +102,25 @@ Page resource error:
           },
         ),
       )
-      ..loadRequest(Uri.parse('https://flutter.dev'));
+      ..loadRequest(Uri.parse('https://m.place.naver.com/restaurant/781105443/home'));
+  }
+
+  callScript(String javascriptMessage) {
+    if (mounted) {
+      setState(() {
+        script = javascriptMessage;
+      });
+    }
+  }
+
+  injectJavascript(WebViewController controller) async {
+    debugPrint('''
+      injectJavascript
+    ''');
+    controller.runJavaScript('''
+    setTabColor("지도");
+    myChannel.postMessage(333);
+''');
   }
 
   @override
