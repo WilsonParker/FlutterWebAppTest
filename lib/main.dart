@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
+import 'mission.dart';
+
 void main() {
   runApp(const MyApp());
 }
@@ -38,7 +40,7 @@ class MyApp extends StatelessWidget {
 }
 
 class WevViewApp extends StatefulWidget {
-  const WevViewApp({Key? key}) : super(key: key);
+  const WevViewApp({super.key});
 
   // This widget is the home page of your application. It is stateful, meaning
   // that it has a State object (defined below) that contains fields that affect
@@ -55,72 +57,27 @@ class WevViewApp extends StatefulWidget {
 
 class _WevViewAppState extends State<WevViewApp> {
   late WebViewController controller;
-  String? script;
 
   @override
   void initState() {
     super.initState();
     controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      ..addJavaScriptChannel("myChannel",
+      ..addJavaScriptChannel("Mission",
           onMessageReceived: (JavaScriptMessage message) {
-        debugPrint('''
-    message received ${message.message}
-    ''');
-        callScript(message.message);
+        openMission(message.message);
       })
-      ..setNavigationDelegate(
-        NavigationDelegate(
-          onProgress: (int progress) {
-            // Update loading bar.
-          },
-          onPageStarted: (String url) {
-            debugPrint('''
-    page start $url
-    ''');
-          },
-          onPageFinished: (String url) {
-            debugPrint('''
-    page finish $url
-    ''');
-            injectJavascript(controller);
-          },
-          onNavigationRequest: (NavigationRequest request) {
-            if (request.url.startsWith('https://www.youtube.com/')) {
-              return NavigationDecision.prevent;
-            }
-            return NavigationDecision.navigate;
-          },
-          onWebResourceError: (WebResourceError error) {
-            debugPrint('''
-Page resource error:
-  code: ${error.errorCode}
-  description: ${error.description}
-  errorType: ${error.errorType}
-  isForMainFrame: ${error.isForMainFrame}
-          ''');
-          },
-        ),
-      )
-      ..loadRequest(Uri.parse('https://m.place.naver.com/restaurant/781105443/home'));
+      ..loadRequest(Uri.parse('http://localhost/app/view'));
   }
 
-  callScript(String javascriptMessage) {
+  openMission(String javascriptMessage) {
     if (mounted) {
-      setState(() {
-        script = javascriptMessage;
-      });
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+            builder: (context) => Mission(url: javascriptMessage)),
+      );
     }
-  }
-
-  injectJavascript(WebViewController controller) async {
-    debugPrint('''
-      injectJavascript
-    ''');
-    controller.runJavaScript('''
-    setTabColor("지도");
-    myChannel.postMessage(333);
-''');
   }
 
   @override
