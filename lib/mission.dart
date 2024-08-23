@@ -1,10 +1,8 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
-import 'package:webview_flutter/webview_flutter.dart';
 import 'package:http/http.dart' as http;
-
-import 'dto/MissionDTO.dart';
+import 'package:webview_flutter/webview_flutter.dart';
 
 class Mission extends StatefulWidget {
   const Mission({super.key, required this.url});
@@ -25,25 +23,29 @@ class Mission extends StatefulWidget {
 }
 
 class _MissionState extends State<Mission> {
-  _MissionState({required this.url});
+  _MissionState({required String url}) : _url = url;
 
-  late WebViewController controller;
-  final String url;
+  late WebViewController _controller;
+  final String _url;
+  late Map<String, dynamic> _json;
+  List<dynamic> _steps = [];
+  int _step = 0;
 
   @override
   void initState() {
     super.initState();
 
-    controller = WebViewController()
+    _controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      ..addJavaScriptChannel("channel",
+      ..addJavaScriptChannel("Channel",
           onMessageReceived: (JavaScriptMessage message) {
-            debugPrint('''
-    open mission
-    message received ${message.message}
-    ''');
-            injectJavascript(controller, message.message);
-          })
+        debugPrint('''
+          open mission
+          message received ${message.message}
+        ''');
+        // injectJavascript(controller, message.message);
+        callScript(message.message);
+      })
       ..setNavigationDelegate(
         NavigationDelegate(
           onProgress: (int progress) {
@@ -51,53 +53,110 @@ class _MissionState extends State<Mission> {
           },
           onPageStarted: (String url) {
             debugPrint('''
-    page start $url
-    ''');
+              page start $url
+            ''');
           },
           onPageFinished: (String url) {
             debugPrint('''
-    page finish $url
-    ''');
-            // injectJavascript(controller);
-          },
-          onNavigationRequest: (NavigationRequest request) {
-            if (request.url.startsWith('https://www.youtube.com/')) {
-              return NavigationDecision.prevent;
+              page finish $url
+            ''');
+
+            String currentStepScript = _steps[_step];
+            String currentStepUrl = getArchitectureValue(
+                currentStepScript.replaceFirst("script", "url"));
+            RegExp regExp = RegExp(r"^" + currentStepUrl);
+
+            if (regExp.hasMatch(url)) {
+              debugPrint('''
+                match
+              ''');
+              String script =
+                  buildImport(getArchitectureValue(currentStepScript));
+              _controller.runJavaScript(script);
+              _step++;
             }
-            return NavigationDecision.navigate;
           },
           onWebResourceError: (WebResourceError error) {
             debugPrint('''
-Page resource error:
-  code: ${error.errorCode}
-  description: ${error.description}
-  errorType: ${error.errorType}
-  isForMainFrame: ${error.isForMainFrame}
+              Page resource error:
+              code: ${error.errorCode}
+              description: ${error.description}
+              errorType: ${error.errorType}
+              isForMainFrame: ${error.isForMainFrame}
           ''');
+          },
+          onNavigationRequest: (NavigationRequest request) {
+            if (request.url.startsWith('https://www.youtube.com/')) {
+              debugPrint('blocking navigation to ${request.url}');
+              return NavigationDecision.prevent;
+            }
+            debugPrint('allowing navigation to ${request.url}');
+            return NavigationDecision.navigate;
+          },
+          onHttpError: (HttpResponseError error) {
+            debugPrint('Error occurred on page: ${error.response?.statusCode}');
+          },
+          onUrlChange: (UrlChange change) {
+            debugPrint('url change to ${change.url}');
+          },
+          onHttpAuthRequest: (HttpAuthRequest request) {
+            // openDialog(request);
           },
         ),
       );
 
-    getArchitecture(url).then((dto) {
-            debugPrint('''
-            url ${dto.url}
-            ''');
-      controller
-        ..loadRequest(Uri.parse(dto.url));
+    getArchitecture(_url).then((json) {
+      _json = json;
+      _controller.loadRequest(Uri.parse(json['url']));
+      _steps = json['steps'];
     });
   }
 
-  Future<MissionDTO> getArchitecture(String url) async {
-    final response =  await http.get(Uri.parse(url));
+  /// architecture 를 api 통신하여 가져옵니다
+  Future<Map<String, dynamic>> getArchitecture(String url) async {
+    final response = await http.get(Uri.parse(url));
     if (response.statusCode == 200) {
       // If the server did return a 200 OK response,
       // then parse the JSON.
-      return MissionDTO.fromJson(jsonDecode(response.body));
+      // return MissionDTO.fromJson(jsonDecode(response.body));
+      return jsonDecode(response.body);
     } else {
       // If the server did not return a 200 OK response,
       // then throw an exception.
-      throw Exception('Failed to load album');
+      throw Exception('Failed to load architecture');
     }
+  }
+
+  /// code 에 해당되는 값을 _json 에서 가져옵니다
+  /// ex) search.url
+  getArchitectureValue(String code) {
+    List<String> keys = code.split('.');
+    dynamic currentValue = _json;
+    for (String key in keys) {
+      if (_json is Map<String, dynamic> && currentValue.containsKey(key)) {
+        currentValue = currentValue[key];
+      } else {
+        return null; // 경로가 유효하지 않으면 null 반환
+      }
+    }
+    return currentValue;
+  }
+
+  /// @[import:$path] 형식을 $path 에 해당 되는 값으로 변환 합니다
+  /// ex) @[import:search.base]
+  buildImport(String text) {
+    RegExp regExp = RegExp(r'@\[(?:import:)(.*?)\]');
+    if (regExp.hasMatch(text)) {
+      Iterable<Match> matches = regExp.allMatches(text);
+      for (var match in matches) {
+        String? import = match.group(1);
+        if (import != null) {
+          text = text.replaceFirst(
+              "@[import:$import]", getArchitectureValue(import));
+        }
+      }
+    }
+    return text;
   }
 
   injectJavascript(WebViewController controller, String script) async {
@@ -105,9 +164,15 @@ Page resource error:
       injectJavascript
     ''');
     controller.runJavaScript('''
-    setTabColor("지도");
-    channel.postMessage(333);
-''');
+    ''');
+  }
+
+  callScript(String javascriptMessage) {
+    if (mounted) {
+      setState(() {
+        // script = javascriptMessage;
+      });
+    }
   }
 
   @override
@@ -116,7 +181,7 @@ Page resource error:
       appBar: AppBar(
         title: const Text('Mission'),
       ),
-      body: WebViewWidget(controller: controller),
+      body: WebViewWidget(controller: _controller),
     );
   }
 }
