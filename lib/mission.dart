@@ -151,6 +151,10 @@ class _MissionState extends State<Mission> {
     final cookies = await controller.runJavaScriptReturningResult(
       'document.cookie',
     );
+
+    await controller.runJavaScript(
+      'Channel.postMessage(document.cookie);',
+    );
     return cookies;
   }
 
@@ -245,6 +249,9 @@ class _MissionState extends State<Mission> {
 
   callScript(String javascriptMessage) {
     if (mounted) {
+      dPrint('''
+        javascriptMessage $javascriptMessage
+      ''');
       setState(() {
         // script = javascriptMessage;
       });
