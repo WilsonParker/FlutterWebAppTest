@@ -4,8 +4,6 @@ import 'package:flutter_application_1/mission_inapp.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
-import 'mission.dart';
-
 void main() async  {
   WidgetsFlutterBinding.ensureInitialized();
 

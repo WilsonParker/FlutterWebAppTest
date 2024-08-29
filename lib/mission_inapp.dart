@@ -38,12 +38,11 @@ class _MissionInAppState extends State<MissionInApp> {
 
   PullToRefreshController? pullToRefreshController;
   double progress = 0;
-  String url = "";
   final String _initUrl;
-  late Map<String, dynamic> _json;
+  String url = "";
   List<dynamic> _steps = [];
   int _step = 0;
-  bool isFirstLoad = false;
+  String _currentStepScript = '';
 
   @override
   void initState() {
@@ -71,20 +70,20 @@ class _MissionInAppState extends State<MissionInApp> {
   }
 
   initWebController() {
-    _service.getArchitecture(_initUrl).then((json) {
-      _json = json;
+    _service.buildArchitecture(_initUrl).then((json) {
       url = json['url'];
       _steps = json['steps'];
+      _currentStepScript = _steps[_step];
       webViewController.addJavaScriptHandler(
           handlerName: 'Channel', callback: (args) {});
+      _service.log("load initWebController");
       webViewController.loadUrl(urlRequest: URLRequest(url: WebUri(url)));
     });
   }
 
   onPageFinished(String url) {
-    String currentStepScript = _steps[_step];
-    String currentStepUrl = _service.getArchitectureValue(
-        _json, currentStepScript.replaceFirst("script", "url"));
+    _currentStepScript = _steps[_step];
+    String currentStepUrl = _service.getStepUrl(_currentStepScript);
     RegExp regExp = RegExp(r"^" + currentStepUrl);
     _service.log('''
         Page Finished
@@ -97,7 +96,7 @@ class _MissionInAppState extends State<MissionInApp> {
       ''');
 
       _service.getMemberInformation(webViewController, (Response response) {
-        String script = _service.buildImport(_json, currentStepScript);
+        String script = _service.buildImport(_currentStepScript);
         webViewController.evaluateJavascript(source: script).then((result) {
           _step++;
         });
@@ -168,14 +167,18 @@ class _MissionInAppState extends State<MissionInApp> {
             pullToRefreshController?.endRefreshing();
 
             webViewController.getUrl().then((WebUri? url) {
-              onPageFinished(url.toString());
+              if(_service.getStepType(_currentStepScript) != 'wait') {
+                onPageFinished(url.toString());
+              }
             });
           }
         },
         onUpdateVisitedHistory: (controller, url, isReload) {
-          _service.onHistoryChanged(controller, url.toString(), (url) {
-            onPageFinished(url);
-          });
+          if(_service.getStepType(_currentStepScript) == 'wait') {
+            _service.onHistoryChanged(controller, url.toString(), (url) {
+              onPageFinished(url);
+            });
+          }
         },
         onConsoleMessage: (controller, consoleMessage) {
           if (kDebugMode) {

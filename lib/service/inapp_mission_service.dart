@@ -58,7 +58,11 @@ class InAppMissionService extends BaseMissionService {
     const checkInterval = Duration(milliseconds: 500);
     final stopwatch = Stopwatch()..start();
 
-    while (!controller.isLoading()) {
+    controller.evaluateJavascript(source: "").then((result) {
+
+    });
+    bool isLoaded = false;
+    while (!isLoaded) {
       // 500ms 간격으로 상태를 체크합니다.
       await Future.delayed(checkInterval);
 
