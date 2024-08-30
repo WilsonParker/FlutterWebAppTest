@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_application_1/enum/guide_type.dart';
 import 'package:flutter_application_1/service/inapp_mission_service.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:http/http.dart';
@@ -167,18 +168,16 @@ class _MissionInAppState extends State<MissionInApp> {
             pullToRefreshController?.endRefreshing();
 
             webViewController.getUrl().then((WebUri? url) {
-              if(_service.getStepType(_currentStepScript) != 'wait') {
-                onPageFinished(url.toString());
-              }
+              _service.isValidStep(controller, _currentStepScript, GuideType.basic, () => onPageFinished(url.toString()));
             });
           }
         },
         onUpdateVisitedHistory: (controller, url, isReload) {
-          if(_service.getStepType(_currentStepScript) == 'wait') {
+          _service.isValidStep(controller, _currentStepScript, GuideType.wait, () => onPageFinished(url.toString()));
+            /*
             _service.onHistoryChanged(controller, url.toString(), (url) {
-              onPageFinished(url);
             });
-          }
+            */
         },
         onConsoleMessage: (controller, consoleMessage) {
           if (kDebugMode) {

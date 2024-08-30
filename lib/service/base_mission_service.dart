@@ -1,6 +1,8 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_application_1/enum/guide_type.dart';
+import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:http/http.dart' as http;
 
 class BaseMissionService {
@@ -60,7 +62,11 @@ class BaseMissionService {
   }
 
   replaceStepType(String step) {
-    return step.replaceFirst("script", "type");
+    return "${step.replaceFirst("script", "type")}.name";
+  }
+
+  replaceStepTypeScript(String step) {
+    return step.replaceFirst("name", "script");
   }
 
   getStepUrl(String step) {
@@ -69,6 +75,22 @@ class BaseMissionService {
 
   getStepType(String step) {
     return getArchitectureValue(replaceStepType(step));
+  }
+
+  getStepTypeScript(String step) {
+    return getArchitectureValue(replaceStepTypeScript(step));
+  }
+
+  void isValidStep(InAppWebViewController controller, String step, GuideType type, Function callback) {
+      log("isValidStep $step");
+      log("isValidStep ${getStepType(step)}");
+    if (getStepType(step) == type.name) {
+      String script = getStepTypeScript(step);
+      log("isValidStep $script");
+      controller.evaluateJavascript(source: "").then((result) {
+        callback();
+      });
+    }
   }
 
   log(String $message) {

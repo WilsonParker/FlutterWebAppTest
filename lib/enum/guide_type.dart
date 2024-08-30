@@ -1,0 +1,3 @@
+enum GuideType {
+  basic, wait
+}
