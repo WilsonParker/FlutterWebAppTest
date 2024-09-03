@@ -76,4 +76,13 @@ class InAppMissionService extends BaseMissionService {
     stopwatch.stop();
     return true;
   }
+
+  getCookies(InAppWebViewController controller) async {
+    Cookie? aut = await getCookie(controller, 'NID_AUT');
+    Cookie? ses = await getCookie(controller, 'NID_SES');
+    return {
+      'NID_AUT': aut?.value,
+      'NID_SES': ses?.value,
+    };
+  }
 }

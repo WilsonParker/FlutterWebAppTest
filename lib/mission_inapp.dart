@@ -1,9 +1,10 @@
+import 'dart:convert';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_application_1/enum/guide_type.dart';
 import 'package:flutter_application_1/service/inapp_mission_service.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
-import 'package:http/http.dart';
 
 class MissionInApp extends StatefulWidget {
   const MissionInApp({super.key, required this.url});
@@ -75,40 +76,65 @@ class _MissionInAppState extends State<MissionInApp> {
       url = json['url'];
       _steps = json['steps'];
       _currentStepScript = _steps[_step];
-      webViewController.addJavaScriptHandler(
-          handlerName: 'Channel', callback: (args) {});
       _service.log("load initWebController");
+
+      // Web 과 통신 하는 channel 등록
+      webViewController.addJavaScriptHandler(
+          handlerName: 'Channel',
+          callback: (args) {
+            _service.log("channel data = $args}");
+
+            var result = switch (args[0]) {
+              'getCookies' => _service.getCookies(webViewController),
+              'decreaseStep' => _step--,
+              _ => null,
+            };
+
+            hook(data) {
+              webViewController
+                  .evaluateJavascript(
+                  source: "${args[1]}('${jsonEncode(data)}')")
+                  .then((result) {
+                _service.log("channel evaluateJavascript = $result}");
+              });
+            }
+
+            if (result is Future) {
+              result.then((data) {
+                _service.log("channel result = $data");
+                hook(data);
+              });
+            } else {
+              hook('');
+            }
+          });
+
+      // webview url 로 이동
       webViewController.loadUrl(urlRequest: URLRequest(url: WebUri(url)));
     });
   }
 
   onPageFinished(String url) {
-    _currentStepScript = _steps[_step];
     String currentStepUrl = _service.getStepUrl(_currentStepScript);
     RegExp regExp = RegExp(r"^" + currentStepUrl);
+    _service.log('''
+        _currentStepScript
+        $_currentStepScript
+      ''');
     _service.log('''
         Page Finished
         $url
       ''');
 
+    // script 를 실행하기 위한 url 조건이 충족할 경우
     if (regExp.hasMatch(url)) {
-      _service.log('''
-        match
-      ''');
+      _service.log(''' match''');
 
-      _service.getMemberInformation(webViewController, (Response response) {
-        String script = _service.buildImport(_currentStepScript);
-        webViewController.evaluateJavascript(source: script).then((result) {
-          _step++;
-        });
-      }, (Response response) {
-        String loginUrl = "https://nid.naver.com/nidlogin.login";
-        if (url != loginUrl) {
-          webViewController.evaluateJavascript(source: """
-              alert('로그인이 필요합니다');
-              location.href = '$loginUrl';
-            """);
-        }
+      String script = _service.buildImport(_currentStepScript);
+      webViewController.evaluateJavascript(source: script).then((result) {
+        _service.log(''' increase step''');
+        _step++;
+        _currentStepScript = _steps[_step];
       });
     }
   }
@@ -173,8 +199,9 @@ class _MissionInAppState extends State<MissionInApp> {
           }
         },
         onUpdateVisitedHistory: (controller, url, isReload) {
+          _service.log("onUpdateVisitedHistory $url");
           _service.isValidStep(controller, _currentStepScript, GuideType.wait, () => onPageFinished(url.toString()));
-            /*
+          /*
             _service.onHistoryChanged(controller, url.toString(), (url) {
             });
             */
