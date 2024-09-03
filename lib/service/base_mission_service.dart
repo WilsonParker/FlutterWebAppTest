@@ -74,6 +74,7 @@ class BaseMissionService {
   }
 
   getStepType(String step) {
+    log("isValidStep type name  ${replaceStepType(step)}");
     return getArchitectureValue(replaceStepType(step));
   }
 
