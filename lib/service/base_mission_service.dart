@@ -1,7 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
-import 'package:flutter_application_1/enum/guide_type.dart';
+import 'package:flutter_application_1/enum/page_type.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:http/http.dart' as http;
 
@@ -14,6 +14,7 @@ class BaseMissionService {
     return convertImport(getArchitectureValue(code) ?? '');
   }
 
+  //  @[import:$path] 형식을 $path 에 해당 되는 값으로 변환 합니다
   convertImport(String script) {
     RegExp regExp = RegExp(r'@\[(?:import:)(.*?)\]');
     if (regExp.hasMatch(script)) {
@@ -82,20 +83,31 @@ class BaseMissionService {
     return getArchitectureValue(replaceStepTypeScript(step));
   }
 
-  void isValidStep(InAppWebViewController controller, String step, GuideType type, Function callback) {
-    if (getStepType(step) == type.name) {
+  // 올바른 step 인지 확인
+  void isValidStep(InAppWebViewController controller, String step, PageType type, Function callback) {
+    // if (getStepType(step) == type.name) {
+      String stepType = getStepType(step);
       String stepScript = getStepTypeScript(step);
       String script = hasImport(stepScript) ? hasScript(stepScript) ? buildImport(stepScript) : convertImport(stepScript) : stepScript;
 
-      if(type == GuideType.basic) {
+      // 페이지 유형이 기본 일 경우
+
+      log("isValidStep ${step}");
+      log("isValidStep ${stepType}");
+      log("isValidStep ${type.name}");
+
+      // step 이 올바를 경우
+      if(type == PageType.basic && stepType == PageType.basic.name) {
+        log("isValidStep is equal");
         controller.evaluateJavascript(source: script).then((result) {
+          log("isValidStep result $result");
           if(result) {
             callback();
           }
         });
-      } else {
+      } else if(type == PageType.wait && stepType == PageType.wait.name) {
+        log("isValidStep is not equal ${script}");
         controller.evaluateJavascript(source: script);
-      }
     }
   }
 

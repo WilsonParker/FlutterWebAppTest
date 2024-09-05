@@ -2,9 +2,10 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_application_1/enum/guide_type.dart';
 import 'package:flutter_application_1/service/inapp_mission_service.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
+
+import 'enum/page_type.dart';
 
 class MissionInApp extends StatefulWidget {
   const MissionInApp({super.key, required this.url});
@@ -87,16 +88,17 @@ class _MissionInAppState extends State<MissionInApp> {
             var result = switch (args[0]) {
               'getCookies' => _service.getCookies(webViewController),
               'decreaseStep' => _step--,
+              'increaseStep' => _step++,
               _ => null,
             };
 
             hook(data) {
+              var carry = args[2] ?? null;
               webViewController
-                  .evaluateJavascript(
-                  source: "${args[1]}('${jsonEncode(data)}')")
+                  .evaluateJavascript(source: "${args[1]}('${jsonEncode(data)}, $carry')")
                   .then((result) {
-                _service.log("channel evaluateJavascript = $result}");
-              });
+                  _service.log("channel evaluateJavascript = $result}");
+                });
             }
 
             if (result is Future) {
@@ -115,6 +117,7 @@ class _MissionInAppState extends State<MissionInApp> {
   }
 
   onPageFinished(String url) {
+    _currentStepScript = _steps[_step];
     String currentStepUrl = _service.getStepUrl(_currentStepScript);
     RegExp regExp = RegExp(r"^" + currentStepUrl);
     _service.log('''
@@ -194,13 +197,13 @@ class _MissionInAppState extends State<MissionInApp> {
             pullToRefreshController?.endRefreshing();
 
             webViewController.getUrl().then((WebUri? url) {
-              _service.isValidStep(controller, _currentStepScript, GuideType.basic, () => onPageFinished(url.toString()));
+              _service.isValidStep(controller, _currentStepScript, PageType.basic, () => onPageFinished(url.toString()));
             });
           }
         },
         onUpdateVisitedHistory: (controller, url, isReload) {
           _service.log("onUpdateVisitedHistory $url");
-          _service.isValidStep(controller, _currentStepScript, GuideType.wait, () => onPageFinished(url.toString()));
+          _service.isValidStep(controller, _currentStepScript, PageType.wait, () => onPageFinished(url.toString()));
           /*
             _service.onHistoryChanged(controller, url.toString(), (url) {
             });
