@@ -10,8 +10,12 @@ class BaseMissionService {
 
   /// @[import:$path] 형식을 $path 에 해당 되는 값으로 변환 합니다
   /// ex) @[import:search.base]
-  buildImport(String code) {
-    return convertImport(getArchitectureValue(code) ?? '');
+  buildImport(String script) {
+    return convertImport(getArchitectureValue(script) ?? '');
+  }
+
+  buildImportCode(String code) {
+    return buildImport("$code.script");
   }
 
   //  @[import:$path] 형식을 $path 에 해당 되는 값으로 변환 합니다
@@ -33,8 +37,7 @@ class BaseMissionService {
     List<String> keys = code.split('.');
     dynamic currentValue = _arc;
     for (String key in keys) {
-      if (currentValue is Map<String, dynamic> &&
-          currentValue.containsKey(key)) {
+      if (currentValue is Map<String, dynamic> && currentValue.containsKey(key)) {
         currentValue = currentValue[key];
       } else {
         return null;
@@ -59,54 +62,47 @@ class BaseMissionService {
     }
   }
 
-  replaceStepUrl(String step) {
-    return step.replaceFirst("script", "url");
+  getCurrentStepScript(List<dynamic> steps, int step) {
+    return "${steps[step]}.script";
   }
 
-  replaceStepType(String step) {
-    return "${step.replaceFirst("script", "type")}.name";
-  }
-
-  replaceStepTypeScript(String step) {
-    return "${step.replaceFirst("script", "type")}.script";
+  getStepScript(String step) {
+    return getArchitectureValue("$step.script");
   }
 
   getStepUrl(String step) {
-    return getArchitectureValue(replaceStepUrl(step));
+    return getArchitectureValue("$step.url");
   }
 
-  getStepType(String step) {
-    return getArchitectureValue(replaceStepType(step));
+  getStepTypeScript(String step, PageType type) {
+    return getArchitectureValue("$step.type.${type.name}.script");
   }
 
-  getStepTypeScript(String step) {
-    return getArchitectureValue(replaceStepTypeScript(step));
+  hasStepType(String step, PageType type) {
+    return getArchitectureValue("$step.type.${type.name}.script") != null;
   }
 
   // 올바른 step 인지 확인
-  void isValidStep(InAppWebViewController controller, String step, PageType type, Function callback) {
-    // if (getStepType(step) == type.name) {
-      String stepType = getStepType(step);
-      String stepScript = getStepTypeScript(step);
-      String script = hasImport(stepScript) ? hasScript(stepScript) ? buildImport(stepScript) : convertImport(stepScript) : stepScript;
-
-      // 페이지 유형이 기본 일 경우
-
+  void isValidStep(InAppWebViewController controller, String step, String lastStep, PageType type, Function callback) {
       log("isValidStep ${step}");
-      log("isValidStep ${stepType}");
+      log("isValidStep ${lastStep}");
       log("isValidStep ${type.name}");
+      log("isValidStep ${hasStepType(step, PageType.basic)}");
 
-      // step 이 올바를 경우
-      if(type == PageType.basic && stepType == PageType.basic.name) {
-        log("isValidStep is equal");
+      if(type == PageType.basic && hasStepType(step, PageType.basic)) {
+        String stepScript = getStepTypeScript(step, PageType.basic);
+        String script = hasImport(stepScript) ? hasScript(stepScript) ? buildImport(stepScript) : convertImport(stepScript) : stepScript;
+        log("isValidStep stepScript $stepScript");
+        log("isValidStep script $script");
         controller.evaluateJavascript(source: script).then((result) {
           log("isValidStep result $result");
           if(result) {
             callback();
           }
         });
-      } else if(type == PageType.wait && stepType == PageType.wait.name) {
-        log("isValidStep is not equal ${script}");
+      } else if(type == PageType.wait && hasStepType(step, PageType.wait)) {
+        String stepScript = getStepTypeScript(step, PageType.wait);
+        String script = hasImport(stepScript) ? hasScript(stepScript) ? buildImport(stepScript) : convertImport(stepScript) : stepScript;
         controller.evaluateJavascript(source: script);
     }
   }

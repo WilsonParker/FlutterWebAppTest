@@ -43,9 +43,11 @@ class _MissionInAppState extends State<MissionInApp> {
   double progress = 0;
   final String _initUrl;
   String url = "";
+  String _lastUrl = "";
   List<dynamic> _steps = [];
   int _step = 0;
-  String _currentStepScript = '';
+  String _currentStep = '';
+  String _lastStep = '';
 
   @override
   void initState() {
@@ -76,7 +78,7 @@ class _MissionInAppState extends State<MissionInApp> {
     _service.buildArchitecture(_initUrl).then((json) {
       url = json['url'];
       _steps = json['steps'];
-      _currentStepScript = _steps[_step];
+      _currentStep = _steps[_step];
       _service.log("load initWebController");
 
       // Web 과 통신 하는 channel 등록
@@ -87,15 +89,16 @@ class _MissionInAppState extends State<MissionInApp> {
 
             var result = switch (args[0]) {
               'getCookies' => _service.getCookies(webViewController),
-              'decreaseStep' => _step--,
-              'increaseStep' => _step++,
+              'decreaseStep' => decreaseStep(),
+              'increaseStep' => increaseStep(),
+              'pageFinished' => webViewController.getUrl().then((url) => onPageFinished(url.toString())),
               _ => null,
             };
 
             hook(data) {
               var carry = args[2] ?? null;
-              webViewController
-                  .evaluateJavascript(source: "${args[1]}('${jsonEncode(data)}, $carry')")
+              var future = data == null ? webViewController.evaluateJavascript(source: "${args[1]}('$carry')") : webViewController.evaluateJavascript(source: "${args[1]}('${jsonEncode(data)}, $carry')");
+              future
                   .then((result) {
                   _service.log("channel evaluateJavascript = $result}");
                 });
@@ -107,7 +110,7 @@ class _MissionInAppState extends State<MissionInApp> {
                 hook(data);
               });
             } else {
-              hook('');
+              hook(null);
             }
           });
 
@@ -116,28 +119,50 @@ class _MissionInAppState extends State<MissionInApp> {
     });
   }
 
+  increaseStep() {
+    _service.log("_lastStepScript $_lastStep");
+    _service.log("_currentStepScript $_currentStep");
+    _service.log("_step $_step");
+    if(_lastStep != _currentStep && _steps.length > _step + 1) {
+      _step++;
+      _lastStep = _currentStep;
+      _currentStep = _steps[_step];
+    }
+
+    _service.log("_lastStepScript 2 $_lastStep");
+    _service.log("_currentStepScript 2 $_currentStep");
+    _service.log("_step 2 $_step");
+  }
+
+  decreaseStep() {
+    _step--;
+    _currentStep = _steps[_step];
+  }
+
   onPageFinished(String url) {
-    _currentStepScript = _steps[_step];
-    String currentStepUrl = _service.getStepUrl(_currentStepScript);
+    String currentStepUrl = _service.getStepUrl(_steps[_step]);
     RegExp regExp = RegExp(r"^" + currentStepUrl);
     _service.log('''
-        _currentStepScript
-        $_currentStepScript
+        _currentStep
+        $_currentStep
       ''');
     _service.log('''
         Page Finished
         $url
       ''');
+    _service.log('''
+        Page last url
+        $_lastUrl
+      ''');
 
     // script 를 실행하기 위한 url 조건이 충족할 경우
-    if (regExp.hasMatch(url)) {
+    if (regExp.hasMatch(url) && url != _lastUrl) {
       _service.log(''' match''');
 
-      String script = _service.buildImport(_currentStepScript);
+      String script = _service.buildImportCode(_currentStep);
       webViewController.evaluateJavascript(source: script).then((result) {
-        _service.log(''' increase step''');
-        _step++;
-        _currentStepScript = _steps[_step];
+        _lastUrl = url;
+        increaseStep();
       });
     }
   }
@@ -197,21 +222,17 @@ class _MissionInAppState extends State<MissionInApp> {
             pullToRefreshController?.endRefreshing();
 
             webViewController.getUrl().then((WebUri? url) {
-              _service.isValidStep(controller, _currentStepScript, PageType.basic, () => onPageFinished(url.toString()));
+              _service.isValidStep(controller, _currentStep, _lastStep, PageType.basic, () => onPageFinished(url.toString()));
             });
           }
         },
         onUpdateVisitedHistory: (controller, url, isReload) {
           _service.log("onUpdateVisitedHistory $url");
-          _service.isValidStep(controller, _currentStepScript, PageType.wait, () => onPageFinished(url.toString()));
-          /*
-            _service.onHistoryChanged(controller, url.toString(), (url) {
-            });
-            */
+          _service.isValidStep(controller, _currentStep, _lastStep, PageType.wait, () => onPageFinished(url.toString()));
         },
         onConsoleMessage: (controller, consoleMessage) {
           if (kDebugMode) {
-            print(consoleMessage);
+            // print(consoleMessage);
           }
         },
       ),
