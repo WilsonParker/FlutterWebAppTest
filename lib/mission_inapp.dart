@@ -4,12 +4,14 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_application_1/service/inapp_mission_service.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
+import 'package:webview_flutter/webview_flutter.dart';
 
 import 'enum/page_type.dart';
 
 class MissionInApp extends StatefulWidget {
-  const MissionInApp({super.key, required this.url});
+  const MissionInApp({super.key, required this.url, required this.parentController});
 
+  final WebViewController parentController;
   final String url;
 
   // This widget is the home page of your application. It is stateful, meaning
@@ -22,12 +24,14 @@ class MissionInApp extends StatefulWidget {
   // always marked "final".
 
   @override
-  State<MissionInApp> createState() => _MissionInAppState(url: url);
+  State<MissionInApp> createState() => _MissionInAppState(initUrl: url, parentController: parentController);
 }
 
 class _MissionInAppState extends State<MissionInApp> {
-  _MissionInAppState({required String url}) : _initUrl = url;
+  _MissionInAppState({required this.initUrl, required this.parentController});
 
+  final WebViewController parentController;
+  final String initUrl;
   final InAppMissionService _service = InAppMissionService();
   final GlobalKey webViewKey = GlobalKey();
 
@@ -41,7 +45,6 @@ class _MissionInAppState extends State<MissionInApp> {
 
   PullToRefreshController? pullToRefreshController;
   double progress = 0;
-  final String _initUrl;
   String url = "";
   String _lastUrl = "";
   List<dynamic> _steps = [];
@@ -75,7 +78,7 @@ class _MissionInAppState extends State<MissionInApp> {
   }
 
   initWebController() {
-    _service.buildArchitecture(_initUrl).then((json) {
+    _service.buildArchitecture(initUrl).then((json) {
       url = json['url'];
       _steps = json['steps'];
       _currentStep = _steps[_step];
@@ -87,13 +90,25 @@ class _MissionInAppState extends State<MissionInApp> {
           callback: (args) {
             _service.log("channel data = $args}");
 
-            var result = switch (args[0]) {
-              'getCookies' => _service.getCookies(webViewController),
-              'decreaseStep' => decreaseStep(),
-              'increaseStep' => increaseStep(),
-              'pageFinished' => webViewController.getUrl().then((url) => onPageFinished(url.toString())),
-              _ => null,
-            };
+            var result;
+            switch (args[0]) {
+              case 'getCookies':
+                result = _service.getCookies(webViewController);
+                break;
+              case 'pageFinished':
+                result =  webViewController.getUrl().then((url) => onPageFinished(url.toString()));
+                break;
+              case 'decreaseStep':
+                result = decreaseStep();
+                break;
+              case 'increaseStep':
+                result = increaseStep();
+                break;
+              case 'closeAndMove':
+                parentController.loadRequest(Uri.parse(args[1]));
+                Navigator.pop(context);
+                break;
+            }
 
             hook(data) {
               var carry = args[2] ?? null;

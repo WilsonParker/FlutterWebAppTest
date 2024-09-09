@@ -83,7 +83,7 @@ class _WevViewAppState extends State<WevViewApp> {
         context,
         MaterialPageRoute(
             // builder: (context) => Mission(url: javascriptMessage)),
-            builder: (context) => MissionInApp(url: javascriptMessage)),
+            builder: (context) => MissionInApp(url: javascriptMessage, parentController: controller,)),
       );
     }
   }
