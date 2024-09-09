@@ -97,7 +97,7 @@ class _MissionInAppState extends State<MissionInApp> {
 
             hook(data) {
               var carry = args[2] ?? null;
-              var future = data == null ? webViewController.evaluateJavascript(source: "${args[1]}('$carry')") : webViewController.evaluateJavascript(source: "${args[1]}('${jsonEncode(data)}, $carry')");
+              var future = data == null ? webViewController.evaluateJavascript(source: "${args[1]}('$carry')") : webViewController.evaluateJavascript(source: "${args[1]}('${jsonEncode(data)}', '$carry')");
               future
                   .then((result) {
                   _service.log("channel evaluateJavascript = $result}");
@@ -137,6 +137,8 @@ class _MissionInAppState extends State<MissionInApp> {
   decreaseStep() {
     _step--;
     _currentStep = _steps[_step];
+    _lastStep = '';
+    _lastUrl = '';
   }
 
   onPageFinished(String url) {
