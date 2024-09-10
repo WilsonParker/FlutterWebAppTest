@@ -74,6 +74,10 @@ class BaseMissionService {
     return getArchitectureValue("$step.url");
   }
 
+  getStepAfter(String step) {
+    return getArchitectureValue("$step.after");
+  }
+
   getStepTypeScript(String step, PageType type) {
     return getArchitectureValue("$step.type.${type.name}.script");
   }
@@ -97,7 +101,7 @@ class BaseMissionService {
         controller.evaluateJavascript(source: script).then((result) {
           log("isValidStep result $result");
           if(result) {
-            callback();
+            callback(getStepAfter(step));
           }
         });
       } else if(type == PageType.wait && hasStepType(step, PageType.wait)) {

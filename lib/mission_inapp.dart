@@ -9,7 +9,8 @@ import 'package:webview_flutter/webview_flutter.dart';
 import 'enum/page_type.dart';
 
 class MissionInApp extends StatefulWidget {
-  const MissionInApp({super.key, required this.url, required this.parentController});
+  const MissionInApp(
+      {super.key, required this.url, required this.parentController});
 
   final WebViewController parentController;
   final String url;
@@ -24,7 +25,8 @@ class MissionInApp extends StatefulWidget {
   // always marked "final".
 
   @override
-  State<MissionInApp> createState() => _MissionInAppState(initUrl: url, parentController: parentController);
+  State<MissionInApp> createState() =>
+      _MissionInAppState(initUrl: url, parentController: parentController);
 }
 
 class _MissionInAppState extends State<MissionInApp> {
@@ -51,6 +53,7 @@ class _MissionInAppState extends State<MissionInApp> {
   int _step = 0;
   String _currentStep = '';
   String _lastStep = '';
+  DateTime? _missionStart;
 
   @override
   void initState() {
@@ -90,43 +93,63 @@ class _MissionInAppState extends State<MissionInApp> {
           callback: (args) {
             _service.log("channel data = $args}");
 
-            var result;
-            switch (args[0]) {
-              case 'getCookies':
-                result = _service.getCookies(webViewController);
-                break;
-              case 'pageFinished':
-                result =  webViewController.getUrl().then((url) => onPageFinished(url.toString()));
-                break;
-              case 'decreaseStep':
-                result = decreaseStep();
-                break;
-              case 'increaseStep':
-                result = increaseStep();
-                break;
-              case 'closeAndMove':
-                parentController.loadRequest(Uri.parse(args[1]));
-                Navigator.pop(context);
-                break;
-            }
+            var hook = args[1] ?? null;
+            var carry = args[2] ?? null;
 
-            hook(data) {
-              var carry = args[2] ?? null;
-              var future = data == null ? webViewController.evaluateJavascript(source: "${args[1]}('$carry')") : webViewController.evaluateJavascript(source: "${args[1]}('${jsonEncode(data)}', '$carry')");
-              future
-                  .then((result) {
-                  _service.log("channel evaluateJavascript = $result}");
-                });
-            }
-
-            if (result is Future) {
-              result.then((data) {
-                _service.log("channel result = $data");
-                hook(data);
+            callHook(data) {
+              var future = data == null
+                  ? webViewController.evaluateJavascript(
+                      source: "$hook('$carry')")
+                  : webViewController.evaluateJavascript(
+                      source: "$hook('${jsonEncode(data)}', '$carry')");
+              future.then((result) {
+                _service.log("channel evaluateJavascript = $result}");
               });
-            } else {
-              hook(null);
             }
+
+            callEvent(key) {
+              switch (key) {
+                case 'getCookies':
+                  _service.getCookies(webViewController).then((data) {
+                    callHook(data);
+                  });
+                  break;
+                case 'pageFinished':
+                  _service.log('run pageFinished');
+                  webViewController
+                      .getUrl()
+                      .then((url) => onPageFinished(url.toString()))
+                      .then((data) {
+                        _service.log('pageFinished');
+                        callHook(data);
+                      });
+                  break;
+                case 'decreaseStep':
+                  decreaseStep();
+                  callHook(null);
+                  break;
+                case 'increaseStep':
+                  increaseStep();
+                  callHook(null);
+                  break;
+                case 'clearLastUrl':
+                  clearLastUrl();
+                  callHook(null);
+                  break;
+                case 'setMissionStart':
+                  _missionStart = DateTime.timestamp();
+                  break;
+                case 'getMissionStart':
+                  callHook(_missionStart);
+                  break;
+                case 'closeAndMove':
+                  parentController.loadRequest(Uri.parse(carry));
+                  Navigator.pop(context);
+                  break;
+              }
+            }
+
+            callEvent(args[0]);
           });
 
       // webview url 로 이동
@@ -138,7 +161,7 @@ class _MissionInAppState extends State<MissionInApp> {
     _service.log("_lastStepScript $_lastStep");
     _service.log("_currentStepScript $_currentStep");
     _service.log("_step $_step");
-    if(_lastStep != _currentStep && _steps.length > _step + 1) {
+    if (_lastStep != _currentStep && _steps.length > _step + 1) {
       _step++;
       _lastStep = _currentStep;
       _currentStep = _steps[_step];
@@ -153,10 +176,17 @@ class _MissionInAppState extends State<MissionInApp> {
     _step--;
     _currentStep = _steps[_step];
     _lastStep = '';
+    clearLastUrl();
+  }
+
+  clearLastUrl() {
+    _service.log('''
+        clearLastUrl
+      ''');
     _lastUrl = '';
   }
 
-  onPageFinished(String url) {
+  onPageFinished(String url, [String? after = null]) async {
     String currentStepUrl = _service.getStepUrl(_steps[_step]);
     RegExp regExp = RegExp(r"^" + currentStepUrl);
     _service.log('''
@@ -175,11 +205,14 @@ class _MissionInAppState extends State<MissionInApp> {
     // script 를 실행하기 위한 url 조건이 충족할 경우
     if (regExp.hasMatch(url) && url != _lastUrl) {
       _service.log(''' match''');
-
-      String script = _service.buildImportCode(_currentStep);
-      webViewController.evaluateJavascript(source: script).then((result) {
-        _lastUrl = url;
-        increaseStep();
+      webViewController
+          .evaluateJavascript(source: _service.buildImportCode(_currentStep))
+          .then((result) {
+            _lastUrl = url;
+            increaseStep();
+            if (after != null) {
+              webViewController.evaluateJavascript(source: _service.convertImport(after));
+            }
       });
     }
   }
@@ -239,13 +272,13 @@ class _MissionInAppState extends State<MissionInApp> {
             pullToRefreshController?.endRefreshing();
 
             webViewController.getUrl().then((WebUri? url) {
-              _service.isValidStep(controller, _currentStep, _lastStep, PageType.basic, () => onPageFinished(url.toString()));
+              _service.isValidStep(controller, _currentStep, _lastStep, PageType.basic, (after) => onPageFinished(url.toString(), after));
             });
           }
         },
         onUpdateVisitedHistory: (controller, url, isReload) {
           _service.log("onUpdateVisitedHistory $url");
-          _service.isValidStep(controller, _currentStep, _lastStep, PageType.wait, () => onPageFinished(url.toString()));
+          _service.isValidStep(controller, _currentStep, _lastStep, PageType.wait, (after) => onPageFinished(url.toString(), after));
         },
         onConsoleMessage: (controller, consoleMessage) {
           if (kDebugMode) {
