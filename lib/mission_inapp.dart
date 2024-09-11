@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_application_1/service/inapp_mission_service.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
+import 'package:intl/intl.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
 import 'enum/page_type.dart';
@@ -53,7 +54,7 @@ class _MissionInAppState extends State<MissionInApp> {
   int _step = 0;
   String _currentStep = '';
   String _lastStep = '';
-  DateTime? _missionStart;
+  String _missionStart = '';
 
   @override
   void initState() {
@@ -137,7 +138,7 @@ class _MissionInAppState extends State<MissionInApp> {
                   callHook(null);
                   break;
                 case 'setMissionStart':
-                  _missionStart = DateTime.timestamp();
+                  _missionStart = DateFormat('y-M-d HH:mm:ss').format(DateTime.now());
                   break;
                 case 'getMissionStart':
                   callHook(_missionStart);
@@ -158,6 +159,7 @@ class _MissionInAppState extends State<MissionInApp> {
   }
 
   increaseStep() {
+    _service.log("==============================");
     _service.log("_lastStepScript $_lastStep");
     _service.log("_currentStepScript $_currentStep");
     _service.log("_step $_step");
@@ -170,6 +172,7 @@ class _MissionInAppState extends State<MissionInApp> {
     _service.log("_lastStepScript 2 $_lastStep");
     _service.log("_currentStepScript 2 $_currentStep");
     _service.log("_step 2 $_step");
+    _service.log("==============================");
   }
 
   decreaseStep() {
